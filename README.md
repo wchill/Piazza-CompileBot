@@ -2,6 +2,8 @@
 A Piazza bot that executes source code in discussions. Inspired by [CompileBot](https://github.com/renfredxh/compilebot)
 
 ### Configuration
+Install `requests` and `ideone` using pip or your package manager. (I highly recommend creating a new virtualenv for this.)  
+You will also need to install this [Piazza library](https://github.com/wchill/piazza-api); run `python setup.py install`.  
 Make a copy of `sample_config.yml` and name it `config.yml`. Edit it with your Piazza username/password and Ideone username/API password.
 
 ### Using the bot
