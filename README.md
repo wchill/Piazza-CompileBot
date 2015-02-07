@@ -9,12 +9,27 @@ The bot will automatically watch any classes it is a member of and check for new
 
 To call the bot, use the following format:
 
+<<<<<<< HEAD
 ````
 CompileBot! python
     for i in range(1, 101):
     	print i
-Input:
-	blah
+=======
 
+CompileBot! python  
+````
+for i in range(1, 101):
+    print i
+````
+>>>>>>> 18ebab82460c50c0e7bd9c86bfb5d20abf941626
+Input:
+````
+blah
+````
+
+<<<<<<< HEAD
 
 CompileBot is case-insensitive and any/no punctuation after its name will be ignored. Code and input should be wrapped in code blocks on Piazza.
+=======
+CompileBot is case-insensitive and any/no punctuation after its name will be ignored. Code and input should be wrapped in code blocks on Piazza.
+>>>>>>> 18ebab82460c50c0e7bd9c86bfb5d20abf941626
