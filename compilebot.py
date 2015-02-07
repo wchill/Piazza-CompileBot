@@ -62,24 +62,27 @@ class PiazzaCompileBot(object):
                     for tag in tags:
                         try:
                             m = None if not tag.contents else re.search(r'(?i)CompileBot[.?;:!]*\s*(?P<args>.*)\s*', tag.contents[0])
-                            if m is not None:
+                            if m is not None and tag.next_sibling and tag.next_sibling.next_sibling:
                                 # look for code
                                 code = None
                                 cur_tag = tag.next_sibling.next_sibling
-                                if cur_tag.name == 'pre':
+                                if cur_tag and cur_tag.name == 'pre':
                                     code = cur_tag.contents[0]
-                                    cur_tag = cur_tag.next_sibling.next_sibling
 
                                 # look for optional stdin
                                 if code is not None:
                                     stdin = ''
-                                    try:
-                                        if cur_tag.name == 'p' and bool(re.match('input', cur_tag.contents[0], re.I)):
-                                            cur_tag = cur_tag.next_sibling.next_sibling
-                                            if cur_tag.name == 'pre':
-                                                stdin = cur_tag.contents[0]
-                                                cur_tag = cur_tag.next_sibling
-                                    except Exception as e:
+                                    if cur_tag.next_sibling and cur_tag.next_sibling.next_sibling:
+                                        cur_tag = cur_tag.next_sibling.next_sibling
+                                        try:
+                                            if cur_tag.name == 'p' and bool(re.match('input', cur_tag.contents[0], re.I)) and cur_tag.next_sibling:
+                                                cur_tag = cur_tag.next_sibling.next_sibling
+                                                if cur_tag and cur_tag.name == 'pre':
+                                                    stdin = cur_tag.contents[0]
+                                                    cur_tag = cur_tag.next_sibling
+                                        except Exception as e:
+                                            pass
+                                    else:
                                         pass
                                     code = urllib.unquote(code)
                                     stdin = urllib.unquote(stdin)
