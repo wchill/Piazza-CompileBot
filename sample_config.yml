@@ -88,13 +88,11 @@
     compile_error_text: |
         An error occurred during the compilation of the included source code.
 
-        If you would like the output of these errors to be included in a reply to your comment, you can include the "**--include-errors**" [option]
-        (http://www.reddit.com/r/CompileBot/wiki/index#wiki_options)
+        If you would like the output of these errors to be included in a reply to your comment, you can include the "**--include-errors**" option
         when creating your request.
     runtime_error_text: |
         An error occurred during the execution of the included source code.
-        If you would like the output of these errors to be included in a reply to your comment, you can include the "**--include-errors**" [option]
-        (http://www.reddit.com/r/CompileBot/wiki/index#wiki_options)
+        If you would like the output of these errors to be included in a reply to your comment, you can include the "**--include-errors**" option
         when creating your request.
     timeout_error_text: |
         Your program took too long to run.
@@ -107,9 +105,3 @@
     internal_error_text: |
         An internal error has occurred on ideone's compilation servers.
         Please wait and try again.
-    recompile_error_text: |
-        There was an error processing you recompilation request.
-        Make sure your message contains "--recompile" followed by a valid comment permalink. [View more details on recompiling here]
-        (http://www.reddit.com/r/CompileBot/wiki/index#wiki_recompiling).
-    recompile_author_error_text: |
-        You can only request to recompile your own comments.

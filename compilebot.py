@@ -16,6 +16,7 @@ class PiazzaCompileBot(object):
     def __init__(self):
         self.p = Piazza()
         self.p.user_login(PIAZZA_USER, PIAZZA_PASS)
+        self.uid = self.p.get_user_profile()['user_id']
 
         classes = self.p.get_user_classes()
         self.classes = []
@@ -38,7 +39,12 @@ class PiazzaCompileBot(object):
                 for feed_post in feed['feed']:
                     # get the post number and retrieve the post
                     post = c.get_post(feed_post['nr'])
+                    if self.already_compiled(post):
+                        print 'Post %s already compiled' % post['id']
+                        break
                     post_text = post['history'][0]['content']
+
+                    print 'Checking post %s for code' % post['id']
 
                     # parse the text in the post
                     # example text:
@@ -50,7 +56,7 @@ class PiazzaCompileBot(object):
                     <p>Input:</p>
                     <pre>blah</pre>
                     """
-                    soup = BeautifulSoup(post_text)
+                    soup = BeautifulSoup(post_text.replace("<br />", "\n"))
                     # Look for p tags
                     tags = soup.find_all('p')
                     for tag in tags:
@@ -59,27 +65,21 @@ class PiazzaCompileBot(object):
                             if m is not None:
                                 # look for code
                                 code = None
-                                cur_tag = tag.next_sibling
+                                cur_tag = tag.next_sibling.next_sibling
                                 if cur_tag.name == 'pre':
                                     code = cur_tag.contents[0]
-                                    cur_tag = cur_tag.next_sibling
-                                elif cur_tag.next_sibling.name == 'pre':
-                                    code = cur_tag.next_sibling.contents[0]
                                     cur_tag = cur_tag.next_sibling.next_sibling
 
                                 # look for optional stdin
                                 if code is not None:
                                     stdin = ''
                                     try:
-                                        if cur_tag.name == 'p' and bool(re.match('input'), cur_tag.contents[0], re.I):
-                                            cur_tag = tag.next_sibling
+                                        if cur_tag.name == 'p' and bool(re.match('input', cur_tag.contents[0], re.I)):
+                                            cur_tag = cur_tag.next_sibling.next_sibling
                                             if cur_tag.name == 'pre':
                                                 stdin = cur_tag.contents[0]
                                                 cur_tag = cur_tag.next_sibling
-                                            elif cur_tag.next_sibling.name == 'pre':
-                                                stdin = cur_tag.next_sibling.contents[0]
-                                                cur_tag = cur_tag.next_sibling.next_sibling
-                                    except:
+                                    except Exception as e:
                                         pass
                                     code = urllib.unquote(code)
                                     stdin = urllib.unquote(stdin)
@@ -90,48 +90,57 @@ class PiazzaCompileBot(object):
                                         # No additional opts found
                                         lang, opts = m.group('args'), []
                                     lang = lang.strip()
-                                    print 'Attempting compile for comment {0}: language={1}, args={2}'.format(post['id'], lang, opts)
+                                    print 'Attempting compile for post {0}: language={1}, args={2}'.format(post['id'], lang, opts)
                                     try:
                                         details = self.compile(code, lang, stdin=stdin)
                                         print "Compiled ideone submission {link} for comment {id}".format(link=details['link'], id=post['id'])
+                                        # The ideone submission result value indicaties the final state of
+                                        # the program. If the program compiled and ran successfully the
+                                        # result is 15. Other codes indicate various errors.
+                                        result_code = details['result']
+                                        # The user is alerted of any errors via message reply unless they
+                                        # include an option to include errors in the reply.
+                                        if result_code in [11, 12, 15]:
+                                            text = self.format_reply(details, opts)
+                                            ideone_link = "http://ideone.com/{}".format(details['link'])
+                                            text += "Ideone link: %s" % ideone_link
+                                            print 'Compilation success!\n%s' % text
+                                            c.add_followup(post['id'], text)
+                                            print 'Posted results to Piazza'
+                                        else:
+                                            error_text = {
+                                                11: COMPILE_ERROR_TEXT,
+                                                12: RUNTIME_ERROR_TEXT,
+                                                13: TIMEOUT_ERROR_TEXT,
+                                                17: MEMORY_ERROR_TEXT,
+                                                19: ILLEGAL_ERROR_TEXT,
+                                                20: INTERNAL_ERROR_TEXT
+                                            }.get(result_code, '')
+                                            # Include any output from the submission in the reply.
+                                            if details['cmpinfo']:
+                                                error_text += "Compiler Output:\n{}\n".format(
+                                                                    self.code_block(details['cmpinfo']))
+                                            if details['output']:
+                                                error_text += "Output:\n{}\n".format(
+                                                        self.code_block(details['output']))
+                                            if details['stderr']:
+                                                error_text += "Error Output:\n{}\n".format(
+                                                                    self.code_block(details['stderr']))
+                                            print 'Error: %s' % error_text
                                     except ideone.IdeoneError as e:
+                                        c.add_followup(post['id'], 'An Ideone error occurred.\n%s' % self.code_block(e))
                                         print e
-                                    # The ideone submission result value indicaties the final state of
-                                    # the program. If the program compiled and ran successfully the
-                                    # result is 15. Other codes indicate various errors.
-                                    result_code = details['result']
-                                    # The user is alerted of any errors via message reply unless they
-                                    # include an option to include errors in the reply.
-                                    if result_code == 15 or ('--include-errors' in opts and result_code in [11, 12]):
-                                        text = self.format_reply(details, opts)
-                                        ideone_link = "http://ideone.com/{}".format(details['link'])
-                                        text += "Ideone link: %s" % ideone_link
-                                        print 'Compilation success!\n%s' % text
-                                    else:
-                                        error_text = {
-                                            11: COMPILE_ERROR_TEXT,
-                                            12: RUNTIME_ERROR_TEXT,
-                                            13: TIMEOUT_ERROR_TEXT,
-                                            17: MEMORY_ERROR_TEXT,
-                                            19: ILLEGAL_ERROR_TEXT,
-                                            20: INTERNAL_ERROR_TEXT
-                                        }.get(result_code, '')
-                                        # Include any output from the submission in the reply.
-                                        if details['cmpinfo']:
-                                            error_text += "Compiler Output:\n\n{}\n\n".format(
-                                                                code_block(details['cmpinfo']))
-                                        if details['output']:
-                                            error_text += "Output:\n\n{}\n\n".format(
-                                                    code_block(details['output']))
-                                        if details['stderr']:
-                                            error_text += "Error Output:\n\n{}\n\n".format(
-                                                                code_block(details['stderr']))
-                                        print 'Error: %s' % error_text
                         except ValueError as e:
                             import traceback, os.path, sys
                             top = traceback.extract_tb(sys.exc_info()[2])[-1]
                             print 'Parse failed: {0}'.format(', '.join([type(e).__name__, os.path.basename(top[0]), str(top[1])]))
 
+    def already_compiled(self, post):
+        children = post['children']
+        for child in children:
+            if child['uid'] == self.uid:
+                return True
+        return False
 
     def compile(self, source, lang, stdin=''):
         """Compile and evaluate source sode using the ideone API and return
@@ -165,10 +174,10 @@ class PiazzaCompileBot(object):
         head, body, extra, = '', '', ''
         # Combine information that will go before the output.
         if '--source' in opts:
-            head += 'Source:\n{}\n\n'.format(code_block(details['source']))
+            head += 'Source:\n{}\n\n'.format(self.code_block(details['source']))
         if '--input' in opts:
         # Combine program output and runtime error output.
-            head += 'Input:\n{}\n\n'.format(code_block(details['input']))
+            head += 'Input:\n{}\n\n'.format(self.code_block(details['input']))
         output = details['output'] + details['stderr']
         # Truncate the output if it contains an excessive
         # amount of line breaks or if it is too long.
@@ -185,7 +194,7 @@ class PiazzaCompileBot(object):
         # Truncate the output if it is too long.
         if len(output) > 8000:
             output = output[:8000] + '\n    ...\n'
-        body += 'Output:\n{}\n\n'.format(output)
+        body += 'Output:\n{}\n\n'.format(self.code_block(output))
         if details['cmpinfo']:
             body += 'Compiler Info:\n{}\n\n'.format(details['cmpinfo'])
         # Combine extra runtime information.
@@ -207,6 +216,9 @@ class PiazzaCompileBot(object):
                 total_len += len(section)
         reply_text = head + body + extra
         return reply_text
+
+    def code_block(self, output):
+        return "<pre>{0}</pre>".format(output)
 
 
 # example usage
